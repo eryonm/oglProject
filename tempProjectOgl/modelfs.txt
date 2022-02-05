@@ -1,0 +1,102 @@
+#version 330 core
+out vec4 FragColor;
+
+in vec2 TexCoords;
+
+uniform int size;
+
+uniform sampler2D map_Bump;
+uniform sampler2D map_Kd;
+uniform sampler2D map_Ks;
+uniform sampler2D map_Ka;
+uniform sampler2D map_Ns;
+uniform sampler2D map_d;
+uniform sampler2D map_Ke;
+uniform sampler2D texture_diffuse;
+
+uniform bool tex_valid;
+uniform bool map_Bump_valid;
+uniform bool map_Kd_valid;
+uniform bool map_Ka_valid;
+uniform bool map_Ks_valid;
+uniform bool map_Ns_valid;
+uniform bool map_d_valid;
+uniform bool map_Ke_valid;
+
+
+uniform vec3 Ka;
+uniform vec3 Kd;
+uniform vec3 Ks;
+uniform vec3 Ke;
+uniform float Ns;
+uniform float Ni;
+uniform float d;
+
+
+void main()
+{    
+		
+	if(tex_valid)
+	{
+
+	vec3 specular = Ks*texture(map_Ks,TexCoords).rgb;
+	vec3 ambient = Ka*texture(map_Ka,TexCoords).rgb;
+	vec3 diffuse = Kd*texture(map_Kd,TexCoords).rgb;
+	
+	vec3 bump = texture(map_Bump,TexCoords).rgb;
+	vec3 ke = Ke*texture(map_Ke,TexCoords).rgb;
+	
+	vec3 ns = Ns*texture(map_Ns,TexCoords).rgb;
+	vec3 dissolve = d*texture(map_d,TexCoords).rgb;
+	
+	
+	if(map_Bump_valid == false)
+	{	
+	bump = vec3(0.0f);	
+	}
+	if(map_Ks_valid== false)
+	{
+	specular = vec3(0.0f);
+	}		
+	if(map_Kd_valid == false)
+	{
+	diffuse = vec3(0.0f);
+	}
+	if(map_Ke_valid== false)
+	{
+	ke = vec3(0.0f);
+	}
+	if(map_Ka_valid== false)
+	{
+	ambient = vec3(0.0f);
+	}
+	if(map_Ns_valid== false)
+	{
+	ns = vec3(0.0f);
+	}
+	if(map_d_valid== false)
+	{
+	dissolve = vec3(0.0f);
+	}
+
+	vec3 result = specular+diffuse+ambient+ns+ke+dissolve;
+	//vec3 result = diffuse+ke;
+	 
+	FragColor = vec4(result,1.0f);
+
+	//FragColor = texture(map_Ks,TexCoords)+texture(map_Kd,TexCoords);
+}	
+else{
+	vec3 specular = Ks;
+	vec3 ambient = Ka;
+	vec3 diffuse = Kd;
+	
+	vec3 result = diffuse;
+
+	FragColor = vec4(result,1.0f);
+
+}
+	
+
+	
+}

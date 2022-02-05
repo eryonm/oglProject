@@ -1,0 +1,31 @@
+#version 330 core
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aNormal;
+layout (location = 2) in vec2 aTexCoords;
+
+out vec2 TexCoords;
+/*out int KaSize;
+out int KsSize;
+out int KdSize;
+out int KeSize;
+out int NsSize;
+out int NiSize;
+out int dSize;*/
+
+uniform mat4 model;
+uniform mat4 view;
+uniform mat4 projection;
+
+/*uniform int KaSize;
+uniform int KsSize;
+uniform int KdSize;
+uniform int KeSize;
+uniform int NsSize;
+uniform int NiSize;
+uniform int dSize;*/
+
+void main()
+{
+    TexCoords = aTexCoords;
+    gl_Position = projection * view * model * vec4(aPos, 1.0);
+}

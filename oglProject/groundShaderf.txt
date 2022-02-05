@@ -1,0 +1,201 @@
+#version 330 core
+
+in vec2 TexCoords;
+in vec3 Normal;
+in vec4 FragPos;
+
+in vec4 light_position;    
+in vec4 light_direction; 
+
+out vec4 FragColor;
+
+#define NR_POINT_LIGHTS 4  
+
+struct PointLight{
+	vec4 position;
+	vec4 ambient;	
+	vec4 diffuse;	
+	vec4 specular;
+	float constant;
+	float linear;	
+	float quadratic;
+	float padd;
+};
+
+layout(std140) uniform PointLightUBlock
+{	
+	PointLight po_light[NR_POINT_LIGHTS];  
+};
+
+struct MaterialGr { 
+   sampler2D mars_texture;
+
+	float shininess;  
+};
+
+
+struct DirectionalLight{
+	vec3 ambient;
+	vec3 diffuse;
+	vec3 specular;
+
+};
+
+/*struct PointLight{
+	
+	vec3 position;
+	vec3 ambient;
+	vec3 diffuse;
+	vec3 specular;
+
+	float constant; 
+	float linear; 
+	float quadratic;
+};*/
+
+struct ProjectorLight
+{
+	vec3 ambient;
+	vec3 diffuse;
+	vec3 specular;
+
+	float constant; 
+	float linear; 
+	float quadratic;
+	float cutOff;
+};
+
+uniform vec4 viewPos;
+uniform MaterialGr material;
+uniform DirectionalLight dir_light;
+//uniform PointLight po_light[NR_POINT_LIGHTS];   	 
+uniform ProjectorLight proj_light;
+
+
+
+vec3 Directional_light_fun(DirectionalLight light,vec4 light_dir,vec3 norm,vec3 viewDir);
+vec3 Point_light_fun(PointLight light,vec4 light_pos,vec3 norm,vec3 viewDir,vec4 FragPos); 
+vec3 Projector_light_fun(ProjectorLight light,vec4 light_pos,vec4 light_dir,vec3 norm,vec3 viewDir,vec4 FragPos);
+
+
+void main()
+{
+        vec3 viewDir = normalize(viewPos.xyz - FragPos.xyz);
+	vec3 norm = normalize(Normal);
+	
+	
+  // Добавляем к нему направленный свет
+  vec3 result = Directional_light_fun(dir_light,light_direction,norm,viewDir);
+ 
+  // Проделываем то же самое для всех точечных источников света
+  for(int i = 0; i < NR_POINT_LIGHTS; i++)
+  	result += Point_light_fun(po_light[i],light_position,norm,viewDir,FragPos);
+ 
+  // А также добавляем другие источники света (например, прожекторы)
+  //result += Projector_light_fun(proj_light,light_position,light_direction,norm,viewDir,FragPos);
+  
+  FragColor = vec4(result, 1.0);
+    
+} 
+
+vec3 Directional_light_fun(DirectionalLight light, vec4 light_dir,vec3 norm,vec3 viewDir)
+{
+	vec3 lightDir = normalize(-light_dir.xyz);
+	
+	vec3 tex_amb = texture(material.mars_texture,TexCoords).rgb;
+	vec3 tex_diff = texture(material.mars_texture,TexCoords).rgb;
+	vec3 tex_spec = texture(material.mars_texture,TexCoords).rgb;
+ 
+        // Окружающая составляющая
+        vec3 ambient = light.ambient.xyz * tex_amb;
+        
+        // Диффузная составляющая 
+        float diff = max(dot(norm, lightDir), 0.0);
+        vec3 diffuse = light.diffuse.xyz * diff * tex_diff;  
+        
+	
+        // Отраженная составляющая
+        vec3 reflectDir = reflect(-lightDir, norm);  
+        float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+        vec3 specular = light.specular.xyz * spec * tex_spec;    
+            
+         return(ambient + diffuse + specular);
+}
+ 
+
+vec3 Point_light_fun(PointLight light,vec4 light_pos,vec3 norm,vec3 viewDir,vec4 FragPos)
+{
+	
+	vec4 light_position = light.position;
+	
+   	vec3 tex_amb = texture(material.mars_texture,TexCoords).rgb;
+	vec3 tex_diff = texture(material.mars_texture,TexCoords).rgb;
+	vec3 tex_spec = texture(material.mars_texture,TexCoords).rgb;
+	
+	// Окружающая составляющая
+        vec3 ambient = light.ambient.xyz * tex_amb;
+        
+        // Диффузная составляющая 
+        vec3 lightDir = normalize(light_position.xyz-FragPos.xyz);
+	float diff = max(dot(norm, lightDir), 0.0);
+        vec3 diffuse = light.diffuse.xyz * diff * tex_diff;  
+        
+	
+        // Отраженная составляющая
+        vec3 reflectDir = reflect(-lightDir, norm);  
+        float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+        vec3 specular = light.specular.xyz * spec * tex_spec;  
+        
+        // Затухание
+        float distance = length(light_position.xyz - FragPos.xyz);
+        float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));    
+
+        // ambient *= attenuation; // убираем ambient-затухание, так как в противном случае, из-за линейного члена ambient внутри ветви else, на больших расстояниях освещенность внутри прожектора будет меньше, чем снаружи
+        diffuse *= attenuation;
+        specular *= attenuation;   
+            
+       return(ambient + diffuse + specular);
+}
+vec3 Projector_light_fun(ProjectorLight light,vec4 light_pos,vec4 light_dir,vec3 norm,vec3 viewDir,vec4 FragPos)
+{
+	vec3 lightDir = normalize(light_pos.xyz - FragPos.xyz);
+	
+	vec3 tex_amb = texture(material.mars_texture,TexCoords).rgb;
+	vec3 tex_diff = texture(material.mars_texture,TexCoords).rgb;
+	vec3 tex_spec = texture(material.mars_texture,TexCoords).rgb;
+    
+    // Проверяем, находится ли освещение внутри конуса прожектора
+    float theta = dot(lightDir, normalize(-light_dir.xyz)); 
+    
+	if(theta>light.cutOff)
+	{
+        // Окружающая составляющая
+        vec3 ambient = light.ambient.xyz * tex_amb;
+        
+        // Диффузная составляющая 
+        float diff = max(dot(norm, lightDir), 0.0);
+        vec3 diffuse = light.diffuse.xyz * diff * tex_diff;  
+        
+	
+        // Отраженная составляющая
+        vec3 reflectDir = reflect(-lightDir, norm);  
+        float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+        vec3 specular = light.specular.xyz * spec * tex_spec;  
+        
+        // Затухание
+        float distance = length(light_pos.xyz - FragPos.xyz);
+        float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));    
+
+        // ambient *= attenuation; // убираем ambient-затухание, так как в противном случае, из-за линейного члена ambient внутри ветви else, на больших расстояниях освещенность внутри прожектора будет меньше, чем снаружи
+        diffuse *= attenuation;
+        specular *= attenuation;   
+
+        return(ambient + diffuse + specular);
+
+	}
+	else{
+	return(vec3(light.ambient.xyz*tex_diff));
+	}
+
+}
+
